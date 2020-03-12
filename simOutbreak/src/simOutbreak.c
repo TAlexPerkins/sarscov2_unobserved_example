@@ -52,11 +52,17 @@ SEXP simOutbreak_C(
   int    lnormFlag = Rf_asInteger(lnormFlag_r);
 
   // decide what to keep track of across replicate simulations
-  SEXP daily_mat = Rf_allocMatrix(INTSXP, repSims, stopSimulationDay);
-  SEXP case_mat = Rf_allocMatrix(INTSXP, repSims, stopSimulationDay);
-  SEXP death_mat = Rf_allocMatrix(INTSXP, repSims, stopSimulationDay);
+  SEXP daily_mat = PROTECT(Rf_allocMatrix(INTSXP, repSims, stopSimulationDay));
+  int* daily_mat_ptr = INTEGER(daily_mat);
 
-  SEXP cum_vec = Rf_allocVector(INTSXP, repSims);
+  SEXP case_mat = PROTECT(Rf_allocMatrix(INTSXP, repSims, stopSimulationDay));
+  int* case_mat_ptr = INTEGER(case_mat);
+
+  SEXP death_mat = PROTECT(Rf_allocMatrix(INTSXP, repSims, stopSimulationDay));
+  int* death_mat_ptr = INTEGER(death_mat);
+
+  SEXP cum_vec = PROTECT(Rf_allocVector(INTSXP, repSims));
+  int* cum_vec_ptr = INTEGER(cum_vec);
 
   // calculate meanlog and sdlogs for lnorm distributions
   double si_sdlog, si_meanlog;
@@ -106,7 +112,9 @@ SEXP simOutbreak_C(
         // get parent j's R0
         R_vec[j] = unif_rand();
         if(R_vec[j] < asympProp){
-          R_vec[j] = R_vec[j]*asympRFraction;
+          R_vec[j] = R*asympRFraction;
+        } else {
+          R_vec[j] = R;
         }
         // sample number of offspring from j
         number_offspring[j] = (int)rnbinom_mu(k,R_vec[j]);
@@ -313,19 +321,29 @@ SEXP simOutbreak_C(
         for(int j=0; j<count_time_death; j++){
           dailyMortality[time_death_unique[j]] += time_death_duplicated[j];
         }
-
-      }
-
-
+      } // if statement for offspring >0
 
       // free memory (make more efficient later)
       free(R_vec);
       free(number_offspring);
+    } // while loop over sim
+
+    // keep track of things that need to be kept track of
+    int cum_inc_tot = 0;
+    for(int i=0; i<stopSimulationDay; i++){
+      // daily_mat
+      daily_mat_ptr[rr + repSims*i] = dailyIncidence[i];
+
+      // case_mat
+      case_mat_ptr[rr + repSims*i] = dailyCases[i];
+
+      // dailyMortality
+      death_mat_ptr[rr + repSims*i] = dailyMortality[i];
+
+      // cumulative incidence
+      cum_inc_tot += dailyIncidence[i];
     }
-
-
-
-
+    cum_vec_ptr[rr] = cum_inc_tot;
 
     free(time_exp);
     free(time_exp_new);
@@ -338,5 +356,5 @@ SEXP simOutbreak_C(
   free(dailyCases);
   free(dailyMortality);
 
-
+  UNPROTECT(4);
 };
