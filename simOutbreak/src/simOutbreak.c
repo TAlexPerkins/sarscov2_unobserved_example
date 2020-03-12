@@ -152,17 +152,12 @@ SEXP simOutbreak_C(
 
         }
 
-        // C only: update time_exp
-        time_exp = (double*)realloc(time_exp,number_offspring_tot*sizeof(double));
-        memcpy(time_exp,time_exp_new,number_offspring_tot*sizeof(double));
-        time_exp_len = number_offspring_tot;
-
         // retain only those infection that occur before time is up
         int inf_within_bound = 0;
-        double* time_exp_within_bound = (double*)malloc(sizeof(double)*time_exp_len);
-        for(int j=0; j<time_exp_len; j++){
-          if( (int)floor(time_exp[j]) <= stopSimulationDay ){
-            time_exp_within_bound[inf_within_bound] = time_exp[j];
+        double* time_exp_within_bound = (double*)malloc(sizeof(double)*number_offspring_tot);
+        for(int j=0; j<number_offspring_tot; j++){
+          if( (int)floor(time_exp_new[j]) <= stopSimulationDay ){
+            time_exp_within_bound[inf_within_bound] = time_exp_new[j];
             inf_within_bound++;
           }
         }
@@ -170,34 +165,158 @@ SEXP simOutbreak_C(
         memcpy(time_exp,time_exp_within_bound,sizeof(double)*inf_within_bound);
         time_exp_len = inf_within_bound;
 
+        // // C only: update time_exp
+        // time_exp = (double*)realloc(time_exp,number_offspring_tot*sizeof(double));
+        // memcpy(time_exp,time_exp_new,number_offspring_tot*sizeof(double));
+        // time_exp_len = number_offspring_tot;
+        //
+        // // retain only those infection that occur before time is up
+        // int inf_within_bound = 0;
+        // double* time_exp_within_bound = (double*)malloc(sizeof(double)*time_exp_len);
+        // for(int j=0; j<time_exp_len; j++){
+        //   if( (int)floor(time_exp[j]) <= stopSimulationDay ){
+        //     time_exp_within_bound[inf_within_bound] = time_exp[j];
+        //     inf_within_bound++;
+        //   }
+        // }
+        // time_exp = (double*)realloc(time_exp,sizeof(double)*inf_within_bound);
+        // memcpy(time_exp,time_exp_within_bound,sizeof(double)*inf_within_bound);
+        // time_exp_len = inf_within_bound;
+
         // determine incubation period and detection in a single loop
         double* incubation_periods = (double*)malloc(time_exp_len*sizeof(double));
         double* time_det = (double*)malloc(time_exp_len*sizeof(double));
         for(int j=0; j<time_exp_len; j++){
-          incubation_periods[j] = rweibull(inc_shape,inc_scale);
+          incubation_periods[j] = (double)rweibull(inc_shape,inc_scale);
           time_det[j] = time_exp[j] + incubation_periods[j] + rpois(report_delay_rate);
         }
 
         // retain only those detected infections that occur before time is up
+        // put into new int array det_within_bound_i; because after this point in the code we only use the floor version
         int det_within_bound_i = 0;
-        double* det_within_bound = (double*)malloc(sizeof(double)*time_exp_len);
+        int* det_within_bound = (int*)malloc(sizeof(int)*time_exp_len);
         for(int j=0; j<time_exp_len; j++){
           if( (int)floor(time_det[j]) <= stopSimulationDay ){
-            det_within_bound[det_within_bound_i] = time_det[j];
+            det_within_bound[det_within_bound_i] = (int)floor(time_det[j]);
             det_within_bound_i++;
           }
         }
-        time_det = (double*)realloc(time_det,sizeof(double)*det_within_bound_i);
-        memcpy(time_det,det_within_bound,sizeof(double)*det_within_bound_i);
+
+        // integer vector of time_exp
+        int* time_exp_floor = (int*)malloc(time_exp_len*sizeof(int));
+        for(int j=0; j<time_exp_len; j++){
+          time_exp_floor[j] = (int)floor(time_exp[j]);
+        }
+
+
+        // first, need to get unique values in time_exp
+        int* time_exp_unique      = malloc(time_exp_len*sizeof(int));
+        int* time_exp_duplicated  = malloc(time_exp_len*sizeof(int));
+        int flag;
+        time_exp_unique[0] = time_exp_floor[0];
+        int count_time_exp = 1; /*one element is counted*/
+
+        for(int j=0; j <= time_exp_len-1; ++j) {
+          time_exp_duplicated[j] = 1;
+          flag = 1;
+          /*the unique array will always have 'count' elements*/
+          for(int n=0; n < count_time_exp; ++n) {
+            if(time_exp_floor[j] == time_exp_unique[n]) {
+              if(j != n){
+                time_exp_duplicated[n] += 1;
+              }
+              flag = 0;
+            }
+          }
+          if(flag == 1) {
+            ++count_time_exp;
+            time_exp_unique[count_time_exp-1] = time_exp_floor[j];
+          }
+        }
+
+        // also need to get unique values for time_det
+        int* time_det_unique      = (int*)malloc(det_within_bound_i*sizeof(int));
+        int* time_det_duplicated  = (int*)malloc(det_within_bound_i*sizeof(int));
+        time_det_unique[0] = det_within_bound[0];
+        int count_time_det = 1; /*one element is counted*/
+
+        for(int j=0; j <= det_within_bound_i-1; ++j) {
+          time_det_duplicated[j] = 1;
+          flag = 1;
+          /*the unique array will always have 'count' elements*/
+          for(int n=0; n < count_time_det; ++n) {
+            if(det_within_bound[j] == time_det_unique[n]) {
+              if(j != n){
+                time_det_duplicated[n] += 1;
+              }
+              flag = 0;
+            }
+          }
+          if(flag == 1) {
+            ++count_time_det;
+            time_det_unique[count_time_det-1] = det_within_bound[j];
+          }
+        }
 
         // update vector of daily incidence of detected infections
+        for(int j=0; j<count_time_exp; j++){
+          dailyIncidence[time_exp_unique[j]] += time_exp_duplicated[j];
+        }
+
+        // update vector of daily case reporting
+        for(int j=0; j<count_time_det; j++){
+          dailyCases[time_det_unique[j]] += time_det_duplicated[j];
+        }
+
+        // determine the time of death of each offspring
+        double* time_death = (double*)malloc(time_exp_len*sizeof(double));
+        for(int j=0; j<time_exp_len; j++){
+          time_death[j] = time_exp[j] + incubation_periods[j] + rlnorm(symp_to_death_meanlog,symp_to_death_sdlog);
+        }
+
+        // retain only deaths that occur before time is up
+        int death_within_bound_i = 0;
+        int* death_within_bound = (int*)malloc(sizeof(int)*time_exp_len);
+        for(int j=0; j<time_exp_len; j++){
+          if( (int)floor(time_death[j]) <= stopSimulationDay ){
+            death_within_bound[death_within_bound_i] = (int)floor(time_death[j]);
+            death_within_bound_i++;
+          }
+        }
+
+        // need to get unique values for death_within_bound
+        int* time_death_unique      = (int*)malloc(death_within_bound_i*sizeof(int));
+        int* time_death_duplicated  = (int*)malloc(death_within_bound_i*sizeof(int));
+        time_death_unique[0] = death_within_bound[0];
+        int count_time_death = 1; /*one element is counted*/
+
+        for(int j=0; j <= time_exp_len-1; ++j) {
+          time_death_duplicated[j] = 1;
+          flag = 1;
+          /*the unique array will always have 'count' elements*/
+          for(int n=0; n < count_time_death; ++n) {
+            if(death_within_bound[j] == time_death_unique[n]) {
+              if(j != n){
+                time_death_duplicated[n] += 1;
+              }
+              flag = 0;
+            }
+          }
+          if(flag == 1) {
+            ++count_time_death;
+            time_death_unique[count_time_death-1] = death_within_bound[j];
+          }
+        }
 
 
-
-
-
+        // update vector of daily mortality
+        for(int j=0; j<count_time_death; j++){
+          dailyMortality[time_death_unique[j]] += time_death_duplicated[j];
+        }
 
       }
+
+
 
       // free memory (make more efficient later)
       free(R_vec);
