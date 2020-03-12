@@ -295,7 +295,7 @@ plot(
   apply(death.mat,2,function(ii)median(ii,na.rm=T)),
   ylim=c(0,max(c(deaths.US.local,death.mat))),col=1,lwd=2,type='l',xaxs='i',yaxs='i',las=1,
   xlim=as.Date('2019-12-31') + c(31,ncol(death.mat)),
-  xlab='Date',ylab='Deaths',main='')
+  xlab='Date',ylab='Daily deaths',main='')
 polygon(
   c(as.Date('2019-12-31') + 1:ncol(death.mat),
     rev(as.Date('2019-12-31') + 1:ncol(death.mat))),
