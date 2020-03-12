@@ -1,0 +1,4 @@
+-I./src/
+-I/usr/local/include
+-I/Library/Frameworks/R.framework/Headers/
+-I/Library/Frameworks/R.framework/Resources/include
