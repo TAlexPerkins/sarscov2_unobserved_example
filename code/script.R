@@ -4,13 +4,13 @@
 # United States.
 #
 # https://twitter.com/TAlexPerkins/status/1237513140578865153
-# 
+#
 # Contributors to the development of this code include:
 # Alex Perkins, taperkins@nd.edu
 # Sean Cavany, scavany@nd.edu
 # Sean Moore, smoore15@nd.edu
 # Anita Lerch, alerch2@nd.edu
-# 
+#
 # Please visit our lab's website at http://perkinslab.weebly.com
 # for more information about our research, including future updates
 # on our COVID-19 work.
@@ -148,7 +148,7 @@ for(i in 1:length(cases.US.imported)){
     if(length(case.days)==0){
       case.days=rep(i,cases.US.imported[i])
     }else{
-      case.days=c(case.days,rep(i,cases.US.imported[i]))      
+      case.days=c(case.days,rep(i,cases.US.imported[i]))
     }
   }
 }
@@ -282,7 +282,7 @@ dev.off()
 
 # plot deaths resulting from locally acquired infections over time
 # note that this does not show deaths that are assumed to happen in
-# the future as a result of recent infection 
+# the future as a result of recent infection
 pdf('../figures/deaths_daily.pdf',width=5,height=4)
 death.mat = t(matrix(
   unlist(lapply(local, function(x) x$death)),
@@ -304,7 +304,7 @@ polygon(
   border=NA,col=rgb(0,0,0,0.25))
 legend("topleft",lty=rep("solid",2),lwd=2,
        legend=c("Data", "Model"),col=c("red","black"),
-       bty='n') 
+       bty='n')
 par(new=T)
 plot(deaths.US.local[31:length(deaths.US.local)],
      type='l',lwd=2,col=2,ylim=c(0,6),xaxs='i',yaxs='i',
