@@ -82,11 +82,50 @@ SEXP simOutbreak_C(
 
     // initiate vector to store timing of parent infections
     int* time_exp = calloc(timeImport_len,sizeof(int));
+    int time_exp_len = timeImport_len;
+
+    // loop through generations of transmission until extinct or time is up
+    while(timeImport_len > 0){
+
+      // draw a number of offspring for each parent
+      double* R_vec = malloc(sizeof(double)*time_exp_len);
+      int* number_offspring = malloc(sizeof(int)*time_exp_len);
+      int number_offspring_tot = 0; // total num off spring from all parents this gen
+      for(int j=0; j<time_exp_len; j++){
+        // get parent j's R0
+        R_vec[j] = unif_rand();
+        if(R_vec[j] < asympProp){
+          R_vec[j] = R_vec[j]*asympRFraction;
+        }
+        // sample number of offspring from j
+        number_offspring[j] = (int)rnbinom_mu(k,R_vec[j]);
+        number_offspring_tot += number_offspring[j]; // increment tot offspring
+      }
+
+      if(number_offspring_tot > 0){
+
+        
+
+      }
+
+      // free memory (make more efficient later)
+      free(R_vec);
+      free(number_offspring);
+    }
 
 
-  }
+
+
+
+    free(time_exp);
+  } // end monte carlo reps
 
 
   PutRNGstate();
+
+  free(dailyIncidence);
+  free(dailyCases);
+  free(dailyMortality);
+
 
 };
