@@ -28,6 +28,10 @@ SEXP simOutbreak_C(
   SEXP lnormFlag_r
 ){
 
+  /* --------------------------------------------------------------------------------
+  # initialize variables
+  -------------------------------------------------------------------------------- */
+
   GetRNGstate();
 
   // stuff about timeImport
@@ -83,6 +87,40 @@ SEXP simOutbreak_C(
   // initiate vector to store daily mortality of autochthonous infections
   int* dailyMortality = (int*)malloc(stopSimulationDay*sizeof(int));
 
+
+  /* --------------------------------------------------------------------------------
+  #   allocate memory for simulation
+  -------------------------------------------------------------------------------- */
+
+  // initiate vector to store timing of parent infections
+  double* time_exp = (double*)malloc(timeImport_len*sizeof(double));
+  memcpy(time_exp,timeImport_ptr,timeImport_len*sizeof(double));
+
+  // use this when we replace the variable of parents with offspring
+  double* time_exp_new = (double*)malloc(timeImport_len*sizeof(double));
+  int time_exp_len = timeImport_len;
+
+  // other variables
+  double* R_vec                   = (double*)malloc(time_exp_len*sizeof(double));
+  int* number_offspring           = (int*)malloc(time_exp_len*sizeof(int));
+  double* time_exp_within_bound   = (double*)malloc(sizeof(double)*50);
+  double* incubation_periods      = (double*)malloc(time_exp_len*sizeof(double));
+  double* time_det                = (double*)malloc(time_exp_len*sizeof(double));
+  int* det_within_bound           = (int*)malloc(time_exp_len*sizeof(int));
+  int* time_exp_floor             = (int*)malloc(time_exp_len*sizeof(int));
+  int* time_exp_unique            = (int*)malloc(time_exp_len*sizeof(int));
+  int* time_exp_duplicated        = (int*)malloc(time_exp_len*sizeof(int));
+  int* time_det_unique            = (int*)malloc(50*sizeof(int));
+  int* time_det_duplicated        = (int*)malloc(50*sizeof(int));
+  double* time_death              = (double*)malloc(time_exp_len*sizeof(double));
+  int* death_within_bound         = (int*)malloc(time_exp_len*sizeof(int));
+  int* time_death_unique          = (int*)malloc(50*sizeof(int));
+  int* time_death_duplicated      = (int*)malloc(50*sizeof(int));
+
+  /* --------------------------------------------------------------------------------
+  #   Monte Carlo iterations
+  -------------------------------------------------------------------------------- */
+
   // replicate repSims number of times
   for(int rr=0; rr<repSims; rr++){
 
@@ -93,20 +131,15 @@ SEXP simOutbreak_C(
       dailyMortality[i] = 0;
     }
 
-    // initiate vector to store timing of parent infections
-    double* time_exp = (double*)malloc(timeImport_len*sizeof(double));
-    memcpy(time_exp,timeImport_ptr,timeImport_len*sizeof(double));
-    int time_exp_len = timeImport_len;
+    /* --------------------------------------------------------------------------------
+    #   simulate through generations of transmission until extinct or time is up
+    -------------------------------------------------------------------------------- */
 
-    // use this when we replace the variable of parents with offspring
-    double* time_exp_new = (double*)malloc(timeImport_len*sizeof(double));
-
-    // loop through generations of transmission until extinct or time is up
     while(timeImport_len > 0){
 
       // draw a number of offspring for each parent
-      double* R_vec = (double*)malloc(sizeof(double)*time_exp_len);
-      int* number_offspring = (int*)malloc(sizeof(int)*time_exp_len);
+      R_vec = (double*)realloc(R_vec,sizeof(double)*time_exp_len);
+      number_offspring = (int*)realloc(number_offspring,sizeof(int)*time_exp_len);
       int number_offspring_tot = 0; // total num off spring from all parents this gen
       for(int j=0; j<time_exp_len; j++){
         // get parent j's R0
@@ -162,7 +195,7 @@ SEXP simOutbreak_C(
 
         // retain only those infection that occur before time is up
         int inf_within_bound = 0;
-        double* time_exp_within_bound = (double*)malloc(sizeof(double)*number_offspring_tot);
+        time_exp_within_bound = (double*)realloc(time_exp_within_bound,number_offspring_tot*sizeof(double));
         for(int j=0; j<number_offspring_tot; j++){
           if( (int)floor(time_exp_new[j]) <= stopSimulationDay ){
             time_exp_within_bound[inf_within_bound] = time_exp_new[j];
@@ -192,8 +225,8 @@ SEXP simOutbreak_C(
         // time_exp_len = inf_within_bound;
 
         // determine incubation period and detection in a single loop
-        double* incubation_periods = (double*)malloc(time_exp_len*sizeof(double));
-        double* time_det = (double*)malloc(time_exp_len*sizeof(double));
+        incubation_periods = (double*)realloc(incubation_periods,time_exp_len*sizeof(double));
+        time_det = (double*)realloc(time_det,time_exp_len*sizeof(double));
         for(int j=0; j<time_exp_len; j++){
           incubation_periods[j] = (double)rweibull(inc_shape,inc_scale);
           time_det[j] = time_exp[j] + incubation_periods[j] + rpois(report_delay_rate);
@@ -202,7 +235,7 @@ SEXP simOutbreak_C(
         // retain only those detected infections that occur before time is up
         // put into new int array det_within_bound_i; because after this point in the code we only use the floor version
         int det_within_bound_i = 0;
-        int* det_within_bound = (int*)malloc(sizeof(int)*time_exp_len);
+        det_within_bound = (int*)realloc(det_within_bound,time_exp_len*sizeof(int));
         for(int j=0; j<time_exp_len; j++){
           if( (int)floor(time_det[j]) <= stopSimulationDay ){
             det_within_bound[det_within_bound_i] = (int)floor(time_det[j]);
@@ -211,15 +244,15 @@ SEXP simOutbreak_C(
         }
 
         // integer vector of time_exp
-        int* time_exp_floor = (int*)malloc(time_exp_len*sizeof(int));
+        time_exp_floor = (int*)realloc(time_exp_floor,time_exp_len*sizeof(int));
         for(int j=0; j<time_exp_len; j++){
           time_exp_floor[j] = (int)floor(time_exp[j]);
         }
 
 
         // first, need to get unique values in time_exp
-        int* time_exp_unique      = malloc(time_exp_len*sizeof(int));
-        int* time_exp_duplicated  = malloc(time_exp_len*sizeof(int));
+        time_exp_unique      = (int*)realloc(time_exp_unique,time_exp_len*sizeof(int));
+        time_exp_duplicated  = (int*)realloc(time_exp_duplicated,time_exp_len*sizeof(int));
         int flag;
         time_exp_unique[0] = time_exp_floor[0];
         int count_time_exp = 1; /*one element is counted*/
@@ -243,8 +276,8 @@ SEXP simOutbreak_C(
         }
 
         // also need to get unique values for time_det
-        int* time_det_unique      = (int*)malloc(det_within_bound_i*sizeof(int));
-        int* time_det_duplicated  = (int*)malloc(det_within_bound_i*sizeof(int));
+        time_det_unique      = (int*)realloc(time_det_unique,det_within_bound_i*sizeof(int));
+        time_det_duplicated  = (int*)realloc(time_det_duplicated,det_within_bound_i*sizeof(int));
         time_det_unique[0] = det_within_bound[0];
         int count_time_det = 1; /*one element is counted*/
 
@@ -277,14 +310,14 @@ SEXP simOutbreak_C(
         }
 
         // determine the time of death of each offspring
-        double* time_death = (double*)malloc(time_exp_len*sizeof(double));
+        time_death = (double*)realloc(time_death,time_exp_len*sizeof(double));
         for(int j=0; j<time_exp_len; j++){
           time_death[j] = time_exp[j] + incubation_periods[j] + rlnorm(symp_to_death_meanlog,symp_to_death_sdlog);
         }
 
         // retain only deaths that occur before time is up
         int death_within_bound_i = 0;
-        int* death_within_bound = (int*)malloc(sizeof(int)*time_exp_len);
+        death_within_bound = (int*)realloc(death_within_bound,time_exp_len*sizeof(int));
         for(int j=0; j<time_exp_len; j++){
           if( (int)floor(time_death[j]) <= stopSimulationDay ){
             death_within_bound[death_within_bound_i] = (int)floor(time_death[j]);
@@ -293,8 +326,8 @@ SEXP simOutbreak_C(
         }
 
         // need to get unique values for death_within_bound
-        int* time_death_unique      = (int*)malloc(death_within_bound_i*sizeof(int));
-        int* time_death_duplicated  = (int*)malloc(death_within_bound_i*sizeof(int));
+        time_death_unique      = (int*)realloc(time_death_unique,death_within_bound_i*sizeof(int));
+        time_death_duplicated  = (int*)realloc(time_death_duplicated,death_within_bound_i*sizeof(int));
         time_death_unique[0] = death_within_bound[0];
         int count_time_death = 1; /*one element is counted*/
 
@@ -322,10 +355,6 @@ SEXP simOutbreak_C(
           dailyMortality[time_death_unique[j]] += time_death_duplicated[j];
         }
       } // if statement for offspring >0
-
-      // free memory (make more efficient later)
-      free(R_vec);
-      free(number_offspring);
     } // while loop over sim
 
     // keep track of things that need to be kept track of
@@ -345,16 +374,47 @@ SEXP simOutbreak_C(
     }
     cum_vec_ptr[rr] = cum_inc_tot;
 
-    free(time_exp);
-    free(time_exp_new);
+
   } // end monte carlo reps
 
+  // return a list to R
+  SEXP out = PROTECT(Rf_allocVector(VECSXP,4));
+  SET_VECTOR_ELT(out,0,daily_mat);
+  SET_VECTOR_ELT(out,1,death_mat);
+  SET_VECTOR_ELT(out,2,case_mat);
+  SET_VECTOR_ELT(out,2,cum_vec);
+
+  SEXP names = PROTECT(Rf_allocVector(STRSXP,4));
+  SET_STRING_ELT(names,0,Rf_mkChar("daily"));
+  SET_STRING_ELT(names,1,Rf_mkChar("death"));
+  SET_STRING_ELT(names,2,Rf_mkChar("cases"));
+  SET_STRING_ELT(names,3,Rf_mkChar("cum"));
+
+  Rf_namesgets(out,names);
 
   PutRNGstate();
 
   free(dailyIncidence);
   free(dailyCases);
   free(dailyMortality);
+  free(time_exp);
+  free(time_exp_new);
+  free(R_vec);
+  free(number_offspring);
+  free(time_exp_within_bound);
+  free(incubation_periods);
+  free(time_det);
+  free(det_within_bound);
+  free(time_exp_floor);
+  free(time_exp_unique);
+  free(time_exp_duplicated);
+  free(time_det_unique);
+  free(time_det_duplicated);
+  free(time_death);
+  free(death_within_bound);
+  free(time_death_unique);
+  free(time_death_duplicated);
 
-  UNPROTECT(4);
+  UNPROTECT(6);
+  return out;
 };
