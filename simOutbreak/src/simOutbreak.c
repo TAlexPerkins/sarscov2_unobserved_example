@@ -76,7 +76,8 @@ SEXP onesim_C(
   }
 
   SEXP cum_case = Rf_ScalarInteger(0);
-  INTEGER(cum_case)[0] = 0;
+  int* cum_case_ptr = INTEGER(cum_case);
+  cum_case_ptr[0] = 0;
 
   // calculate meanlog and sdlogs for lnorm distributions
   double si_sdlog, si_meanlog;
@@ -109,13 +110,42 @@ SEXP onesim_C(
   memcpy(time_exp,timeImport_ptr,timeImport_len*sizeof(double));
   int parents = timeImport_len;
 
-  int* number_offspring = NULL;
-  double* time_exp_next = NULL;
-  double* incubation_periods = NULL;
-  double* time_det = NULL;
-  double* time_death = NULL;
+  /* --------------------------------------------------------------------------------
+  #   pointers to dynamically allocated memory
+  -------------------------------------------------------------------------------- */
 
+  int* number_offspring = NULL;
+
+  double* time_exp_next = NULL;
+  int*    time_exp_floor = NULL;
+
+  double* incubation_periods = NULL;
+
+  double* time_det = NULL;
+  int*    time_det_floor = NULL;
+
+  double* time_death = NULL;
+  int* time_death_floor = NULL;
+
+  int* time_exp_uniq = NULL;
+  int* time_exp_dup = NULL;
+
+  int* time_det_uniq = NULL;
+  int* time_det_dup = NULL;
+
+  int* time_death_uniq = NULL;
+  int* time_death_dup = NULL;
+
+
+  /* --------------------------------------------------------------------------------
+  #   simulation loop
+  -------------------------------------------------------------------------------- */
+  int sim=0;
   while(parents > 0){
+    sim++;
+    Rprintf(" --- SIMULATING GENERATION %d --- \n",sim);
+
+    R_CheckUserInterrupt();
 
     // draw number of offspring from each case (parent)
     number_offspring = (int*)realloc(number_offspring, parents * sizeof(int));
@@ -134,11 +164,11 @@ SEXP onesim_C(
 
     if(tot_offspring > 0){
 
-      // from here on out condition on number_offspring>0
 
-      // ignore lnorm flag for now
+      /* --------------------------------------------------------------------------------
+      #   determine the time of exposure of each offspring and only for parents with offspring
+      -------------------------------------------------------------------------------- */
 
-      // determine the time of exposure of each offspring and only for parents with offspring
       time_exp_next = (double*)realloc(time_exp_next,tot_offspring);
 
       int k=0;
@@ -161,13 +191,21 @@ SEXP onesim_C(
       time_exp = (double*)realloc(time_exp,parents * sizeof(double));
       memcpy(time_exp,time_exp_next,parents * sizeof(double));
 
-      // determine incubation period for each offspring
+
+      /* --------------------------------------------------------------------------------
+      #   determine incubation period for each offspring
+      -------------------------------------------------------------------------------- */
+
       incubation_periods = (double*)realloc(incubation_periods,parents * sizeof(double));
       for(int i=0; i<parents; i++){
         incubation_periods[i] = rweibull(inc_shape,inc_scale);
       }
 
-      // determine the time of infection detection of each offspring
+
+      /* --------------------------------------------------------------------------------
+      #   determine the time of infection detection of each offspring
+      -------------------------------------------------------------------------------- */
+
       time_det = (double*)realloc(time_det,parents * sizeof(double));
 
       k=0;
@@ -182,7 +220,11 @@ SEXP onesim_C(
       // time_det will have nonsense after position [0,...,time_det_k-1]
       int time_det_k = k;
 
-      // determine the time of death of each offspring
+
+      /* --------------------------------------------------------------------------------
+      #   determine the time of death of each offspring
+      -------------------------------------------------------------------------------- */
+
       time_death = (double*)realloc(time_death,parents * sizeof(double));
 
       k=0;
@@ -198,28 +240,133 @@ SEXP onesim_C(
       int time_death_k = k;
 
 
+      /* --------------------------------------------------------------------------------
+      #   update vector of daily incidence of detected infections
+      -------------------------------------------------------------------------------- */
 
-      // # update vector of daily incidence of detected infections
-      // dailyIncidence[as.numeric(names(table(floor(time.exp))))] =
-      //   dailyIncidence[as.numeric(names(table(floor(time.exp))))] +
-      //   table(floor(time.exp))
-      //
-      // # update vector of daily case reporting
-      // dailyCases[as.numeric(names(table(floor(time.det))))] =
-      //   dailyCases[as.numeric(names(table(floor(time.det))))] +
-      //   table(floor(time.det))
-      //
-      //   # update vector of daily mortality
-      //   dailyMortality[as.numeric(names(table(floor(time.death))))] =
-      //     dailyMortality[as.numeric(names(table(floor(time.death))))] +
-      //       table(floor(time.death))
+      time_exp_floor = (int*)realloc(time_exp_floor,parents * sizeof(int));
+      for(int i=0; i<parents; i++){
+        time_exp_floor[i] = (int)floor(time_exp[i]);
+      }
+
+      time_exp_uniq = (int*)realloc(time_exp_uniq, parents * sizeof(int));
+      time_exp_dup = (int*)realloc(time_exp_dup, parents * sizeof(int));
+      int j, n, flag;
+
+      time_exp_uniq[0] = time_exp_floor[0];
+      int count_exp = 1;
+
+      for(j=0; j <= parents-1; ++j) {
+          time_exp_dup[j] = 1;
+          flag = 1;;
+          /*the unique array will always have 'count' elements*/
+          for(n=0; n < count_exp; ++n) {
+              if(time_exp_floor[j] == time_exp_uniq[n]) {
+                  if(j != n){
+                    time_exp_dup[n] += 1;
+                  }
+                  flag = 0;
+              }
+          }
+          if(flag == 1) {
+              ++count_exp;
+              time_exp_uniq[count_exp-1] = time_exp_floor[j];
+          }
+      }
+
+      for(int j=0; j<count_exp; j++){
+        dailyIncidence[time_exp_uniq[j]] += time_exp_dup[j];
+      }
 
 
+      /* --------------------------------------------------------------------------------
+      #   update vector of daily case reporting
+      -------------------------------------------------------------------------------- */
 
-    }
+      time_det_floor = (int*)realloc(time_det_floor,time_det_k * sizeof(int));
+      for(int i=0; i<time_det_k; i++){
+        time_det_floor[i] = (int)floor(time_det[i]);
+      }
 
+      time_det_uniq = (int*)realloc(time_det_uniq, time_det_k * sizeof(int));
+      time_det_dup = (int*)realloc(time_det_dup, time_det_k * sizeof(int));
+
+      time_det_uniq[0] = time_det_floor[0];
+      int count_det = 1;
+
+      for(j=0; j <= time_det_k-1; ++j) {
+          time_det_dup[j] = 1;
+          flag = 1;;
+          /*the unique array will always have 'count' elements*/
+          for(n=0; n < count_det; ++n) {
+              if(time_det_floor[j] == time_det_uniq[n]) {
+                  if(j != n){
+                    time_det_dup[n] += 1;
+                  }
+                  flag = 0;
+              }
+          }
+          if(flag == 1) {
+              ++count_det;
+              time_det_uniq[count_det-1] = time_det_floor[j];
+          }
+      }
+
+      for(int j=0; j<count_det; j++){
+        dailyCases[time_det_uniq[j]] += time_det_dup[j];
+      }
+
+
+      /* --------------------------------------------------------------------------------
+      #   update vector of daily mortality
+      -------------------------------------------------------------------------------- */
+
+      time_death_floor = (int*)realloc(time_death_floor,time_death_k * sizeof(int));
+      for(int i=0; i<time_death_k; i++){
+        time_death_floor[i] = (int)floor(time_death[i]);
+      }
+
+      time_death_uniq = (int*)realloc(time_death_uniq, time_death_k * sizeof(int));
+      time_death_dup = (int*)realloc(time_death_dup, time_death_k * sizeof(int));
+
+      time_death_uniq[0] = time_death_floor[0];
+      int count_death = 1;
+
+      for(j=0; j <= time_death_k-1; ++j) {
+          time_death_dup[j] = 1;
+          flag = 1;;
+          /*the unique array will always have 'count' elements*/
+          for(n=0; n < count_death; ++n) {
+              if(time_death_floor[j] == time_death_uniq[n]) {
+                  if(j != n){
+                    time_death_dup[n] += 1;
+                  }
+                  flag = 0;
+              }
+          }
+          if(flag == 1) {
+              ++count_death;
+              time_death_uniq[count_death-1] = time_death_floor[j];
+          }
+      }
+
+      for(int j=0; j<count_death; j++){
+        dailyMortality[time_death_uniq[j]] += time_death_dup[j];
+      }
+
+    } // end if
+
+  } // end while
+
+
+  // keep track of things that need to be kept track of
+  memcpy(daily_mat_ptr,dailyIncidence,stopSimulationDay * sizeof(int));
+  memcpy(case_mat_ptr,dailyCases,stopSimulationDay * sizeof(int));
+  memcpy(death_mat_ptr,dailyMortality,stopSimulationDay * sizeof(int));
+
+  for(int i=0; i<stopSimulationDay; i++){
+    cum_case_ptr[0] += dailyIncidence[i];
   }
-
 
   // return a list to R
   SEXP out = PROTECT(Rf_allocVector(VECSXP,4));
@@ -242,26 +389,45 @@ SEXP onesim_C(
   free(dailyCases);
   free(dailyMortality);
   free(time_exp);
-  // free(time_exp_new);
-  // free(R_vec);
-  // free(number_offspring);
-  // free(time_exp_within_bound);
-  // free(incubation_periods);
-  // free(time_det);
-  // free(det_within_bound);
-  // free(time_exp_floor);
-  // free(time_exp_unique);
-  // free(time_exp_duplicated);
-  // free(time_det_unique);
-  // free(time_det_duplicated);
-  // free(time_death);
-  // free(death_within_bound);
-  // free(time_death_unique);
-  // free(time_death_duplicated);
+
+  free(number_offspring);
+  free(time_exp_next);
+  free(time_exp_floor);
+  free(incubation_periods);
+  free(time_det);
+  free(time_det_floor);
+  free(time_death);
+  free(time_death_floor);
+  free(time_exp_uniq);
+  free(time_exp_dup);
+  free(time_det_uniq);
+  free(time_det_dup);
+  free(time_death_uniq);
+  free(time_death_dup);
 
   UNPROTECT(5);
   return out;
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 /* --------------------------------------------------------------------------------
