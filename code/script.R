@@ -93,7 +93,8 @@ deaths.US.local = pmax(0, deaths.US.total - deaths.US.imported)
 
 # sample replicates of how many infections have been imported into the US
 maxUS = 1e4
-rangeUS = sum(yesUS$traveler==1):maxUS
+# Alex, is this na.rm fine?
+rangeUS = sum(yesUS$traveler==1, na.rm=TRUE):maxUS
 # estimate for asymptomatic proportion based on
 # https://www.medrxiv.org/content/10.1101/2020.02.20.20025866v2
 PrAsymptomatic = exp(optim(par=c(0,0),fn=function(par){
