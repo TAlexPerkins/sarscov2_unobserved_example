@@ -39,22 +39,22 @@ SEXP simOutbreak_C(
   SEXP lnormFlag_r // int (coerce in R)
 );
 
-SEXP onesim_C(
-  SEXP timeImport, // vector of ints
-  SEXP R_r,
-  SEXP k_r,
-  SEXP si_mean_r,
-  SEXP si_sd_r,
-  SEXP inc_shape_r,
-  SEXP inc_scale_r,
-  SEXP symp_to_death_mean_r,
-  SEXP symp_to_death_sd_r,
-  SEXP report_delay_rate_r,
-  SEXP stopSimulationDay_r, // int
-  SEXP repSims_r, // int
-  SEXP asympProp_r,
-  SEXP asympRFraction_r,
-  SEXP lnormFlag_r // int (coerce in R)
-);
+// SEXP onesim_C(
+//   SEXP timeImport, // vector of ints
+//   SEXP R_r,
+//   SEXP k_r,
+//   SEXP si_mean_r,
+//   SEXP si_sd_r,
+//   SEXP inc_shape_r,
+//   SEXP inc_scale_r,
+//   SEXP symp_to_death_mean_r,
+//   SEXP symp_to_death_sd_r,
+//   SEXP report_delay_rate_r,
+//   SEXP stopSimulationDay_r, // int
+//   SEXP repSims_r, // int
+//   SEXP asympProp_r,
+//   SEXP asympRFraction_r,
+//   SEXP lnormFlag_r // int (coerce in R)
+// );
 
 #endif

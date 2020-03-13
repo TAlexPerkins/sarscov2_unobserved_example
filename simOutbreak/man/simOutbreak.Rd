@@ -22,6 +22,38 @@ simOutbreak(
   lnormFlag = TRUE
 )
 }
+\arguments{
+\item{timeImport}{timing of each imported infection}
+
+\item{R}{reproduction number}
+
+\item{k}{dispersion parameter}
+
+\item{si_mean}{mean of serial interval distribution}
+
+\item{si_sd}{standard deviation of serial interval distribution}
+
+\item{inc_shape}{hape parameter of incubation period distribution (Weibull)}
+
+\item{inc_scale}{scale parameter of incubation period distribution (Weibull)}
+
+\item{symp_to_death_mean}{mean of time between symptom onset and death}
+
+\item{symp_to_death_sd}{std. dev. of time between symptom onset and death}
+
+\item{report_delay_rate}{mean delay between symptoms and reporting}
+
+\item{stopSimulationDay}{day of year since Jan 1 when simulation stops}
+
+\item{repSims}{number of replicates to produce for these parameters}
+
+\item{asympProp}{proportion of infections that are asymptomatic}
+
+\item{lnormFlag}{toggles whether serial interval distribution is lognormal}
+
+\item{asympRFractionrelative}{infectiousness of asymptomatics}
+}
 \description{
-Branching Process Outbreak Simulator
+This function works exactly the same as the R version.
+If both are loaded in the same R session, use this one via \code{simOutbreak::simOutbreak}
 }
