@@ -7,7 +7,7 @@
 #   March 2020
 #
 # -------------------------------------------------------------------------------- #
-x <- c(25,25,25,25,25); set.seed(123); library(simOutbreak); simOutbreak(x)
+
 # This is a script to generate results posted in a thread on
 # Twitter by Alex Perkins (@TAlexPerkins) on March 10, 2020 regarding
 # the COVID-19 pandemic and its status up to March 8, 2020 in the
@@ -177,7 +177,7 @@ for(ii in 1:replicates){
 
 # simulate local transmission for each draw of imported infections
 local = foreach(ii = 1:replicates) %do% {
-  simOutbreak(
+  simOutbreak::simOutbreak(
     timeImport = import.doy[[ii]], # timing of each imported infection
     R = 1.97, # reproduction number
     k = 1e3, # dispersion parameter
@@ -195,23 +195,127 @@ local = foreach(ii = 1:replicates) %do% {
     lnormFlag = T # toggles whether serial interval distribution is lognormal
   )
 }
-ii=1
 
+# set figure margins
+par(mar=c(4,5,1,1))
 
-out <- simOutbreak::  simOutbreak(
-  timeImport = import.doy[[ii]], # timing of each imported infection
-  R = 1.97, # reproduction number
-  k = 1e3, # dispersion parameter
-  si_mean = 4.56, # mean of serial interval distribution
-  si_sd = 0.95, # standard deviation of serial interval distribution
-  inc_shape = 1.88, # shape parameter of incubation period distribution
-  inc_scale = 7.97, # scale parameter of incubation period distribution
-  symp_to_death_mean = 22.3, # mean of time between symptom onset and death
-  symp_to_death_sd = 0.42 * 22.3, # std. dev. of time between symptom onset and death
-  report_delay_rate = 3, # mean delay between symptoms and reporting
-  stopSimulationDay = 68, # day of year since Jan 1 when simulation stops
-  repSims = 1, # number of replicates to produce for these parameters
-  asympProp = propns.ASCF[ii,1], # proportion of infections that are asymptomatic
-  asympRFraction = 1, # relative infectiousness of asymptomatics
-  lnormFlag = T # toggles whether serial interval distribution is lognormal
-)
+# plot distribution of cumulative infections
+pdf('../figures/cumulative_infectionsC.pdf',width=5,height=4)
+hist(
+  unlist(lapply(local,function(ll)ll$cum)),
+  col='gray',xlab='Cumulative infections',
+  ylab='Number of simulations',main='',las=1)
+dev.off()
+
+# plot distribution of deaths expected to eventually result
+# from infections through the end of the simulation
+pdf('../figures/eventual_deathsC.pdf',width=5,height=4)
+hist(
+  unlist(lapply(local,function(ll)ll$cum)) * propns.ASCF[,4],
+  col='gray',xlab='Infections so far that will result in death',
+  ylab='Number of simulations',main='',las=1)
+dev.off()
+
+# plot all locally acquired infections over time
+pdf('../figures/infections_dailyC.pdf',width=5,height=4)
+local.mat = t(matrix(
+  unlist(lapply(local, function(x) x$daily)),
+  length(local[[1]]$daily),
+  replicates))
+plot(
+  as.Date('2019-12-31') + 1:ncol(local.mat),
+  apply(local.mat,2,function(ii)median(ii,na.rm=T)),
+  ylim=c(0,max(local.mat)),col=1,lwd=2,type='l',xaxs='i',yaxs='i',las=1,
+  xlim=as.Date('2019-12-31') + c(31,ncol(local.mat)),
+  xlab='Date',ylab='Daily infections',main='')
+polygon(
+  c(as.Date('2019-12-31') + 1:ncol(local.mat),
+    rev(as.Date('2019-12-31') + 1:ncol(local.mat))),
+  c(apply(local.mat,2,function(ii)quantile(ii,0.025,na.rm=T)),
+    rev(apply(local.mat,2,function(ii)quantile(ii,0.975,na.rm=T)))),
+  border=NA,col=rgb(0,0,0,0.25))
+dev.off()
+
+# plot locally acquired symptomatic infections over time
+pdf('../figures/symptomatic_dailyC.pdf',width=5,height=4)
+cases.mat = t(matrix(
+  unlist(lapply(local, function(x) x$cases)),
+  length(local[[1]]$cases),
+  replicates))
+cases.mat.obs = rbinom(length(cases.mat), as.vector(cases.mat), rowSums(propns.ASCF[,2:3]))
+cases.mat = matrix(cases.mat.obs, replicates, ncol(cases.mat))
+plot(
+  as.Date('2019-12-31') + 1:ncol(cases.mat),
+  apply(cases.mat,2,function(ii)median(ii,na.rm=T)),
+  ylim=c(0,max(cases.mat)),col=1,lwd=2,type='l',xaxs='i',yaxs='i',las=1,
+  xlim=as.Date('2019-12-31') + c(31,ncol(cases.mat)),
+  xlab='Date',ylab='Daily symptomatic infections',main='')
+polygon(
+  c(as.Date('2019-12-31') + 1:ncol(cases.mat),
+    rev(as.Date('2019-12-31') + 1:ncol(cases.mat))),
+  c(apply(cases.mat,2,function(ii)quantile(ii,0.025,na.rm=T)),
+    rev(apply(cases.mat,2,function(ii)quantile(ii,0.975,na.rm=T)))),
+  border=NA,col=rgb(0,0,0,0.25))
+dev.off()
+
+# plot proportion of locally acquired symptomatic infections reported over time
+pdf('../figures/symptomatic_detectedC.pdf',width=5,height=4)
+cases.mat = t(matrix(
+  unlist(lapply(local, function(x) x$cases)),
+  length(local[[1]]$cases),
+  replicates))
+p.mat = matrix(NA,nrow(cases.mat),ncol(cases.mat))
+for(ii in 1:nrow(cases.mat)){
+  for(jj in 1:ncol(cases.mat)){
+    if(cases.mat[ii,jj]){
+      p.mat[ii,jj] =
+        rbeta(1,1+cases.US.local[jj],max(1,1+cases.mat[ii,jj]-cases.US.local[jj])) /
+        sum(propns.ASCF[2:3])
+    }
+  }
+}
+plot(
+  as.Date('2019-12-31') + 1:ncol(p.mat),
+  apply(p.mat,2,function(ii)median(ii,na.rm=T)),
+  ylim=c(0,1),col=1,lwd=2,type='l',xaxs='i',yaxs='i',las=1,
+  xlim=as.Date('2019-12-31') + c(31,ncol(p.mat)),
+  xlab='Date',ylab='Symptomatics reporting',
+  main='')
+polygon(
+  c(as.Date('2019-12-31') + 1:ncol(p.mat),
+    rev(as.Date('2019-12-31') + 1:ncol(p.mat))),
+  c(apply(p.mat,2,function(ii)quantile(ii,0.025,na.rm=T)),
+    rev(apply(p.mat,2,function(ii)quantile(ii,0.975,na.rm=T)))),
+  border=NA,col=rgb(0,0,0,0.25))
+dev.off()
+
+# plot deaths resulting from locally acquired infections over time
+# note that this does not show deaths that are assumed to happen in
+# the future as a result of recent infection
+pdf('../figures/deaths_dailyC.pdf',width=5,height=4)
+death.mat = t(matrix(
+  unlist(lapply(local, function(x) x$death)),
+  length(local[[1]]$death),
+  replicates))
+death.mat.obs = rbinom(length(death.mat), as.vector(death.mat), propns.ASCF[,4])
+death.mat = matrix(death.mat.obs, replicates, ncol(death.mat))
+plot(
+  as.Date('2019-12-31') + 1:ncol(death.mat),
+  apply(death.mat,2,function(ii)median(ii,na.rm=T)),
+  ylim=c(0,max(c(deaths.US.local,death.mat))),col=1,lwd=2,type='l',xaxs='i',yaxs='i',las=1,
+  xlim=as.Date('2019-12-31') + c(31,ncol(death.mat)),
+  xlab='Date',ylab='Daily deaths',main='')
+polygon(
+  c(as.Date('2019-12-31') + 1:ncol(death.mat),
+    rev(as.Date('2019-12-31') + 1:ncol(death.mat))),
+  c(apply(death.mat,2,function(ii)quantile(ii,0.025,na.rm=T)),
+    rev(apply(death.mat,2,function(ii)quantile(ii,0.975,na.rm=T)))),
+  border=NA,col=rgb(0,0,0,0.25))
+legend("topleft",lty=rep("solid",2),lwd=2,
+       legend=c("Data", "Model"),col=c("red","black"),
+       bty='n')
+par(new=T)
+plot(deaths.US.local[31:length(deaths.US.local)],
+     type='l',lwd=2,col=2,ylim=c(0,6),xaxs='i',yaxs='i',
+     xaxt='n',yaxt='n',xlab='',ylab='')
+dev.off()
