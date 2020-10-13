@@ -168,7 +168,7 @@ for(ii in 1:replicates){
 
 # simulate local transmission for each draw of imported infections
 local = foreach(ii = 1:replicates) %do% {
-  simOutbreak(
+  simOutbreak::simOutbreak(
     timeImport = import.doy[[ii]], # timing of each imported infection
     R = 1.97, # reproduction number
     k = 1e3, # dispersion parameter
